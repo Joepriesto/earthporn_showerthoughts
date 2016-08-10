@@ -42,9 +42,11 @@ num_posts = config['SUBREDDITS'].getint('numberposts', fallback=1000)
 min_width = config['IMAGES'].getint('minimumwidth', fallback=1920)
 min_height =  config['IMAGES'].getint('minimumheight', fallback=1080)
 logic = config['IMAGES'].get('logic', fallback='and')
+htmlorjpeg = config['IMAGES'].get('htmlorjpeg', fallback='html')
 
 # Paths to the files
 template_path = os.path.expanduser(config['FILEPATHS']['template'])
+file_location = os.path.expanduser(config['FILEPATHS']['imagePath'])
 
 ## Temporary display file path while updating and testing
 display_path = os.path.expanduser(config['FILEPATHS']['display']) 
@@ -180,6 +182,25 @@ def log_out(type_out, text):
     with open(os.path.join(log_path, type_out + '.log'), 'a') as f:
         f.write('{:%d-%b-%Y: %H:%M:%S}: {}\n'.format(datetime.now(), text))
 
+def create_jpeg(img, text):
+    """Creates a jpeg with the image and text"""
+
+    try:
+        response = requests.get(img)
+        background = Image.open(BytesIO(response.content))
+    except (OSError, IOError) as e :
+        log_out('error', '{}: {}'.format(type(e).__name__, e))
+        log_out('error', 'Image URL = {}'.format(url))
+        return False 
+    draw = ImageDraw.Draw(background)
+    textLocation = ()
+    textLocation = ((background.size[0]/2)-(draw.textsize(text)[0]/2),(background.size[1]/2)-(draw.textsize(text)[1]/2))
+    draw.text(textLocation, text, fill="white")
+    background.save(os.path.join(file_location,"background",background.format))
+
+    return
+
+
 check_size = create_check_size(min_height, min_width, logic)
 
 def main():
@@ -215,16 +236,21 @@ def main():
 
         length = len(witty_text)
 
-        if length > 146:
-            middle = int(length/2)
-            split = witty_text[:middle].rfind(' ')
-            witty_text = witty_text[:split]+'<br>'+witty_text[split:]
+        if htmlorjpeg == "jpg":
+            create_jpeg(img_url, witty_text)
 
-        with open(os.path.join(template_path, 'template.html'), 'r') as f: 
-            template = string.Template(f.read())
+        else:
 
-        with open(os.path.join(display_path, 'ep_st.html'), 'w') as f: 
-            f.write(template.substitute(img=img_url, text=witty_text))
+            if length > 146:
+                middle = int(length/2)
+                split = witty_text[:middle].rfind(' ')
+                witty_text = witty_text[:split]+'<br>'+witty_text[split:]
+
+            with open(os.path.join(template_path, 'template.html'), 'r') as f: 
+                template = string.Template(f.read())
+
+            with open(os.path.join(display_path, 'ep_st.html'), 'w') as f: 
+                f.write(template.substitute(img=img_url, text=witty_text))
 
         time.sleep(60)
 
